@@ -258,8 +258,9 @@ export async function createOrderInSupabase(
     if (payErr) console.warn('Error inserting payment reference:', payErr);
 
     return orderId;
-  } catch (err) {
+  } catch (err: any) {
     console.error('Failed to create order tracking in database:', err);
+    alert('Error de Supabase al procesar el Pedido: ' + (err.message || JSON.stringify(err)));
     throw err;
   }
 }
@@ -275,7 +276,7 @@ export async function addProductToSupabase(newProduct: Omit<BatteryProduct, 'id'
 
     const id = `item-${Date.now()}`;
     
-    // Mapeo unificado estricto a snake_case sin campos duplicados inválidos
+    // Mapeo unificado estricto a snake_case sanitizando tipos nativos (INT para stock)
     const productRecord = {
       id: id,
       category_id: categoryId,
@@ -305,6 +306,7 @@ export async function addProductToSupabase(newProduct: Omit<BatteryProduct, 'id'
     };
   } catch (err: any) {
     console.error('Failed to insert new custom battery:', err.message || err);
+    alert('Error de Supabase al Añadir Producto: ' + (err.message || JSON.stringify(err)));
     throw err;
   }
 }
@@ -356,6 +358,7 @@ export async function updateProductInSupabase(productId: string, updatedFields: 
     } as BatteryProduct;
   } catch (err: any) {
     console.error('Failed to update battery in database:', err.message || err);
+    alert('Error de Supabase al Editar Producto: ' + (err.message || JSON.stringify(err)));
     throw err;
   }
 }
@@ -374,6 +377,7 @@ export async function deleteProductFromSupabase(productId: string): Promise<bool
     return true;
   } catch (err: any) {
     console.error('Failed to delete battery from database:', err.message || err);
+    alert('Error de Supabase al Eliminar Producto: ' + (err.message || JSON.stringify(err)));
     throw err;
   }
 }
@@ -424,8 +428,9 @@ export async function createUserProfile(id: string, name: string, email: string,
 
     if (error) throw error;
     return data;
-  } catch (err) {
+  } catch (err: any) {
     console.error('Failed to save manual user profile:', err);
+    alert('Error de Supabase en Perfil de Usuario: ' + (err.message || JSON.stringify(err)));
     throw err;
   }
 }
