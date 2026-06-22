@@ -12,6 +12,7 @@ import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 
+// Solución para compatibilidad de rutas con ESM en entornos Node/Vercel
 const __filename = typeof globalThis.__filename !== 'undefined'
   ? globalThis.__filename
   : fileURLToPath(import.meta.url);
@@ -25,43 +26,43 @@ const PORT = 3000;
 
 app.use(express.json());
 
-// Clave de respaldo explícita por si process.env no se inyecta bien en Vercel
-const apiKey = process.env.GEMINI_API_KEY || 'AIzaSyDzmcB-EsKC2j9wIOaaMxlZeX9s1_391wA';
+// Diagnóstico local para consola: Te avisa si Node cargó el archivo .env correctamente
+console.log("¿GEMINI_API_KEY detectada?:", process.env.GEMINI_API_KEY ? "SÍ" : "NO");
 
-console.log("Instanciando cliente de GoogleGenAI...");
+// Inicialización limpia según los estándares oficiales de @google/genai
 const ai = new GoogleGenAI({
-  apiKey: apiKey,
-  httpOptions: {
-    headers: {
-      'User-Agent': 'aistudio-build',
-    }
-  }
+  apiKey: process.env.GEMINI_API_KEY || ''
 });
 
 // AI Assistant Help Chat endpoint
 app.post('/api/ai-helper', async (req, res) => {
   try {
     const { messages } = req.body;
-    console.log("Petición recibida en /api/ai-helper. Mensajes a procesar:", messages?.length);
+    console.log("Petición recibida en /api/ai-helper. Historial de mensajes:", messages?.length);
 
     if (!messages || !Array.isArray(messages)) {
       return res.status(400).json({ error: 'Falta el historial de mensajes o formato inválido.' });
     }
 
+    // System instruction del bot comercial Leando IA
     const systemPrompt = `Eres "Leando IA", el asistente inteligente de Leandro Baterías, la tienda líder de baterías de alta gama en Perú (CAPSA, SOLITE, VARTA, ULTRABAT, ETNA, ENERJET).
 Tus objetivos principales son:
 1. Ayudar amablemente al usuario a elegir su batería ideal basándote en la marca de su vehículo, modelo, año y uso.
 2. Dar consejos técnicos rápidos (ej. qué significa el Amperaje (Ah), los meses de garantía, o cómo leer el CCA/Arranque en frío).
-3. Ser servicial, profesional y carismático, hablando con modismos de Perú de forma discreta (recomendar auxilio express en Lima).
-4. Sugerir marcas premium como CAPSA, SOLITE, VARTA, ULTRABAT, ETNA, ENERJET.`;
+3. Ser servicial, profesional y carismático, hablando con modismos de Perú de forma discreta (recomendar auxilio express o instalación a domicilio en Lima).
+4. Sugerir marcas premium como CAPSA, SOLITE, VARTA, ULTRABAT, ETNA, ENERJET.
+Mantén tus respuestas bien formateadas, usando negritas para destacar y respondiendo en un tono amigable, directo y enfocado en solucionar el problema de batería del cliente.`;
 
-    // Formatear correctamente la estructura según el SDK oficial de Google
-    const contents = messages.map((m: any) => ({
-      role: m.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: m.content || m.text || '' }]
-    }));
+    // Mapeo estructurado para mantener el historial compatible con la API de Google
+    const contents = messages.map((m: any) => {
+      const textContent = m.content || m.text || '';
+      return {
+        role: m.role === 'assistant' || m.role === 'model' ? 'model' : 'user',
+        parts: [{ text: String(textContent) }]
+      };
+    });
 
-    console.log("Llamando a la API de Gemini (gemini-2.5-flash)...");
+    console.log("Enviando conversación a Gemini (gemini-2.5-flash)...");
     
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
@@ -71,22 +72,21 @@ Tus objetivos principales son:
       }
     });
 
-    console.log("Respuesta recibida exitosamente de Gemini.");
+    console.log("Respuesta generada exitosamente por la IA.");
     const replyText = response.text || "Lo siento, no pude procesar la respuesta en este momento.";
     return res.json({ result: replyText });
 
   } catch (error: any) {
     console.error('--- ERROR CRÍTICO EN EL CHATBOT ---', error);
     
-    // MODO CONTINGENCIA: Si la API key está bloqueada o expidió, respondemos con simulación técnica
-    // Esto evita que la app se quede colgada o devuelva error 500 al usuario.
-    console.warn("Ejecutando respuesta simulada por falla de credenciales.");
+    // Bloque de contingencia si la clave no conecta a los servidores de Google
     return res.json({ 
-      result: "¡Hola! Estoy experimentando una alta demanda de consultas técnicas sobre baterías. ¿Buscabas una batería **CAPSA**, **VARTA** o **ETNA** para tu vehículo? Dime el modelo y año para ayudarte temporalmente." 
+      result: "¡Hola! Estoy experimentando una alta demanda de consultas técnicas sobre baterías. ¿Buscabas una batería **CAPSA**, **VARTA** o **ETNA** para tu vehículo? Dime el modelo y año para ayudarte temporalmente. (Nota de desarrollo: Verifica que tu clave real esté cargada en tu archivo .env o panel de Vercel)." 
     });
   }
 });
 
+// Configuración del servidor intermedio para entorno de Desarrollo (Vite) y Producción (Static Assets)
 async function setupServer() {
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
