@@ -88,23 +88,36 @@ Mantén tus respuestas bien formateadas, usando negritas para destacar y respond
 
 // Configuración del servidor intermedio para entorno de Desarrollo (Vite) y Producción (Static Assets)
 async function setupServer() {
-  if (process.env.NODE_ENV !== 'production') {
+  // Verificamos si NO estamos en la infraestructura Serverless de Vercel y es modo Desarrollo
+  if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
     });
     app.use(vite.middlewares);
+
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`Leandro Baterías server running locally on port ${PORT}`);
+    });
   } else {
+    // En producción (Vercel), servimos los archivos estáticos desde dist
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
+    
     app.get('*', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
-  }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Leandro Baterías server running on port ${PORT}`);
-  });
+    // Solo abrimos puerto continuo si se corre la build de producción localmente fuera de Vercel
+    if (!process.env.VERCEL) {
+      app.listen(PORT, '0.0.0.0', () => {
+        console.log(`Server listening on port ${PORT}`);
+      });
+    }
+  }
 }
 
 setupServer();
+
+// ¡ESTA LÍNEA ES CRUCIAL PARA VERCEL SERVERLESS!
+export default app;
