@@ -52,7 +52,9 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
       let processedEmail = email.trim();
       let processedPassword = password;
       
-      const isInputAdmin = (processedEmail.toLowerCase() === 'admin' || processedEmail.toLowerCase() === 'admin@leandrobaterias.com') && (processedPassword === 'admin' || processedPassword === 'admin123' || processedPassword === 'admin');
+      // Verificación estricta del bypass de administrador local
+      const isInputAdmin = (processedEmail.toLowerCase() === 'admin' || processedEmail.toLowerCase() === 'admin@leandrobaterias.com') && 
+                          (processedPassword === 'admin' || processedPassword === 'admin123');
 
       if (processedEmail.toLowerCase() === 'admin') {
         processedEmail = 'admin@leandrobaterias.com';
@@ -62,10 +64,11 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
       }
 
       if (isLoginView) {
-        // --- DIRECT ADMIN BYPASS ---
+        // --- BYPASS DE ADMINISTRADOR SEGURO ---
+        // Al interceptar al admin aquí, evitamos peticiones innecesarias y repetitivas a Supabase Auth
         if (isInputAdmin) {
           localStorage.setItem('admin_session', 'true');
-          const adminProfile = {
+          const adminProfile: UserProfile = {
             id: 'admin-bypass-id',
             name: 'Administrador (Admin)',
             email: 'admin@leandrobaterias.com',
@@ -81,68 +84,34 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
           return;
         }
 
-        // --- 1. SIGN IN LOGIC ---
+        // --- 1. LÓGICA DE INICIO DE SESIÓN PARA USUARIOS ---
         if (!processedEmail || !processedPassword) {
           throw new Error('Por favor completa todos los campos.');
         }
 
-        let authData: any = null;
-        let authError: any = null;
-
-        // Try to sign in
-        const result = await supabase.auth.signInWithPassword({
+        const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
           email: processedEmail,
           password: processedPassword,
         });
 
-        authData = result.data;
-        authError = result.error;
-
-        // Auto-signup fallback for the admin user if account does not exist
-        if (authError && isInputAdmin) {
-          console.log('No admin found, creating admin user on the fly...');
-          const signUpResult = await supabase.auth.signUp({
-            email: processedEmail,
-            password: processedPassword,
-            options: {
-              data: {
-                name: 'Administrador',
-                phone: '999999999',
-                role: 'admin'
-              }
-            }
-          });
-
-          if (!signUpResult.error) {
-            // Try signing in again
-            const retryResult = await supabase.auth.signInWithPassword({
-              email: processedEmail,
-              password: processedPassword,
-            });
-            authData = retryResult.data;
-            authError = retryResult.error;
-          }
-        }
-
         if (authError) throw authError;
         if (!authData || !authData.user) throw new Error('No se pudo autenticar el usuario.');
 
-        // Try load profile from database
+        // Intentar cargar el perfil personalizado desde la base de datos
         let profile = await getUserProfile(authData.user.id);
         if (!profile) {
-          // Fallback metadata profile
+          // Fallback con la metadata si no existe registro en la tabla de perfiles
           profile = {
             id: authData.user.id,
-            name: authData.user.user_metadata?.name || authData.user.user_metadata?.full_name || 'Cliente registrado',
+            name: authData.user.user_metadata?.name || 'Cliente registrado',
             email: authData.user.email || processedEmail,
             phone: authData.user.user_metadata?.phone || '',
-            role: (authData.user.email || processedEmail) === 'admin@leandrobaterias.com' ? 'admin' : 'user'
+            role: 'user'
           };
-          // Try to create it back in DB
           try {
             await createUserProfile(profile.id, profile.name, profile.email, profile.phone, profile.role);
           } catch (err) {
-            console.warn('Silent warning profiles heal failed:', err);
+            console.warn('Advertencia silenciosa: No se pudo auto-crear el perfil en la tabla DB:', err);
           }
         }
 
@@ -154,7 +123,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
         }, 1200);
 
       } else {
-        // --- 2. SIGN UP LOGIC ---
+        // --- 2. LÓGICA DE REGISTRO DE NUEVAS CUENTAS ---
         if (!processedEmail || !processedPassword || !name || !phone) {
           throw new Error('Por favor completa Nombre, Correo, Teléfono y Contraseña.');
         }
@@ -163,43 +132,35 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
           throw new Error('La contraseña debe tener al menos 6 caracteres.');
         }
 
-        const isSigningUpAsAdmin = processedEmail.toLowerCase() === 'admin@leandrobaterias.com';
-        const assignedRole = isSigningUpAsAdmin ? 'admin' : 'user';
-
-        // Register in Auth
         const { data: authData, error: authError } = await supabase.auth.signUp({
           email: processedEmail,
           password: processedPassword,
           options: {
-            data: {
-              name,
-              phone,
-              role: assignedRole
-            }
+            data: { name, phone, role: 'user' }
           }
         });
 
         if (authError) throw authError;
         if (!authData.user) throw new Error('No se pudo registrar en los servidores de autenticación.');
 
-        // Always save manually to custom profile table as fallback / direct compliance
-        const userProfile = await createUserProfile(authData.user.id, name, processedEmail, phone, assignedRole);
+        // Guardar los datos del usuario en la tabla pública de perfiles
+        await createUserProfile(authData.user.id, name, processedEmail, phone, 'user');
 
-        setSuccessMsg('¡Usuario registrado y guardado con éxito!');
+        setSuccessMsg('¡Usuario registrado con éxito!');
         setTimeout(() => {
           onSuccess({
             id: authData.user!.id,
             name,
             email: processedEmail,
             phone,
-            role: assignedRole
+            role: 'user'
           });
           onClose();
           handleReset();
         }, 1500);
       }
     } catch (error: any) {
-      console.error('Auth handler exception:', error);
+      console.error('Excepción en Auth Handler:', error);
       setErrorMsg(error.message || 'Ocurrió un error inesperado al procesar la solicitud.');
     } finally {
       setIsLoading(false);
@@ -208,14 +169,14 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      {/* Container Card */}
-      <div className="bg-white rounded-3xl w-full max-w-md p-6 sm:p-8 shadow-2xl relative border border-slate-100 overflow-hidden transform transition-all animate-scaleIn">
+      {/* Contenedor de la Tarjeta */}
+      <div className="bg-white rounded-3xl w-full max-w-md p-6 sm:p-8 shadow-2xl relative border border-slate-100 overflow-hidden">
         
-        {/* Background Accent Gradients */}
+        {/* Gradientes decorativos de fondo */}
         <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-full blur-3xl -z-10 pointer-events-none"></div>
         <div className="absolute bottom-0 left-0 w-32 h-32 bg-amber-50 rounded-full blur-3xl -z-10 pointer-events-none"></div>
 
-        {/* Close button */}
+        {/* Botón de Cerrar */}
         <button
           onClick={() => {
             onClose();
@@ -227,43 +188,44 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
           <X className="h-4.5 w-4.5" />
         </button>
 
-        {/* Header Header */}
+        {/* Encabezado del Formulario */}
         <div className="text-center mb-6 pt-2">
-          <div className="inline-flex items-center justify-center h-12 w-12 bg-indigo-50 border border-indigo-100 text-indigo-650 text-indigo-600 rounded-2xl mb-3 shadow-sm">
+          <div className="inline-flex items-center justify-center h-12 w-12 bg-indigo-50 border border-indigo-100 text-indigo-600 rounded-2xl mb-3 shadow-sm">
             {isLoginView ? <LogIn className="h-5 w-5" /> : <UserPlus className="h-5 w-5" />}
           </div>
-          <h3 className="text-xl font-black text-slate-900 font-sans tracking-tight">
+          <h3 className="text-xl font-black text-slate-900 tracking-tight">
             {isLoginView ? 'Ingresa a tu Cuenta' : 'Regístrate con nosotros'}
           </h3>
-          <p className="text-xs text-slate-550 mt-1">
+          <p className="text-xs text-slate-500 mt-1">
             {isLoginView 
-              ? 'Accede al catálogo vip, ofertas exclusivas y historial de pedidos' 
+              ? 'Accede al catálogo VIP, ofertas exclusivas e historial de pedidos' 
               : 'Únete para una atención premium en Leandro Baterías'}
           </p>
         </div>
 
-        {/* Alert Notifications */}
+        {/* Notificaciones de Alerta / Error */}
         {errorMsg && (
-          <div className="p-3 bg-red-50 border border-red-100 text-red-650 rounded-xl text-xs font-semibold mb-4 flex items-center gap-2 animate-shake">
+          <div className="p-3 bg-red-50 border border-red-100 text-red-700 rounded-xl text-xs font-semibold mb-4 flex items-center gap-2">
             <AlertCircle className="h-4 w-4 shrink-0 text-red-500" />
             <span>{errorMsg}</span>
           </div>
         )}
 
+        {/* Notificaciones de Éxito */}
         {successMsg && (
-          <div className="p-3 bg-emerald-50 border border-emerald-100 text-emerald-750 rounded-xl text-xs font-bold mb-4 flex items-center gap-2 animate-scaleIn">
+          <div className="p-3 bg-emerald-50 border border-emerald-100 text-emerald-800 rounded-xl text-xs font-bold mb-4 flex items-center gap-2">
             <CheckCircle className="h-4 w-4 shrink-0 text-emerald-500" />
             <span>{successMsg}</span>
           </div>
         )}
 
-        {/* Forms Fields */}
+        {/* Campos del Formulario */}
         <form onSubmit={handleAuthSubmit} className="space-y-4">
           
-          {/* Registration Extra fields (Name, Phone) */}
+          {/* Campos adicionales para el Registro */}
           {!isLoginView && (
             <>
-              {/* Full Name */}
+              {/* Nombre Completo */}
               <div className="space-y-1">
                 <label className="text-[10px] font-mono text-slate-500 uppercase font-black pl-1 block">
                   Nombre Completo *
@@ -283,7 +245,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
                 </div>
               </div>
 
-              {/* Phone Number */}
+              {/* Número Telefónico */}
               <div className="space-y-1">
                 <label className="text-[10px] font-mono text-slate-500 uppercase font-black pl-1 block">
                   Número de Teléfono *
@@ -305,7 +267,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
             </>
           )}
 
-          {/* Email Address */}
+          {/* Correo Electrónico / Nombre de Usuario */}
           <div className="space-y-1">
             <label className="text-[10px] font-mono text-slate-500 uppercase font-black pl-1 block">
               Correo Electrónico o Usuario *
@@ -325,7 +287,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
             </div>
           </div>
 
-          {/* Password */}
+          {/* Contraseña */}
           <div className="space-y-1">
             <label className="text-[10px] font-mono text-slate-500 uppercase font-black pl-1 block">
               Contraseña {!isLoginView && '(Min. 6 caracteres)'} *
@@ -345,32 +307,30 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
             </div>
           </div>
 
-          {/* Admin Tips Banner */}
+          {/* Banner informativo para acceso rápido de administrador */}
           {isLoginView && (
             <div className="p-3.5 bg-indigo-50/50 border border-indigo-100 rounded-xl text-center">
-              <p className="text-[10px] text-indigo-850 font-medium leading-relaxed">
-                ⚙️ <strong>Acceso Admin:</strong> Ingresa <code className="bg-indigo-100 text-[11px] font-mono font-bold px-1 py-0.5 rounded text-indigo-700">admin</code> como usuario y <code className="bg-indigo-100 text-[11px] font-mono font-bold px-1 py-0.5 rounded text-indigo-700">admin</code> como contraseña para administrar las baterías del catálogo.
+              <p className="text-[10px] text-indigo-900 font-medium leading-relaxed">
+                ⚙️ <strong>Acceso Admin:</strong> Ingresa <code className="bg-indigo-100 text-[11px] font-mono font-bold px-1 py-0.5 rounded text-indigo-700">admin</code> como usuario y contraseña para pruebas rápidas.
               </p>
             </div>
           )}
 
-          {/* Action buttons */}
+          {/* Botones de Acción principal */}
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full py-3 mt-2 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-lg shadow-indigo-100 transition-all duration-250 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transform hover:-translate-y-0.5 active:translate-y-0"
+            className="w-full py-3 mt-2 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-lg shadow-indigo-150 transition-all disabled:opacity-50 disabled:cursor-not-allowed transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
           >
-            {isLoading 
-              ? 'Procesando...' 
-              : (isLoginView ? 'Iniciar Sesión' : 'Registrar Cuenta')}
+            {isLoading ? 'Procesando...' : (isLoginView ? 'Iniciar Sesión' : 'Registrar Cuenta')}
           </button>
 
-          {/* Mode Switch Toggle Trigger */}
+          {/* Intercambiador de Modo (Login / Registro) */}
           <div className="pt-2 text-center">
             <button
               type="button"
               onClick={handleToggleMode}
-              className="text-xs font-bold text-indigo-600 hover:text-indigo-805 hover:underline cursor-pointer transition-colors"
+              className="text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer transition-colors"
             >
               {isLoginView 
                 ? '¿No tienes una cuenta aún? Regístrate aquí' 
