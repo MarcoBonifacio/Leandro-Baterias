@@ -61,26 +61,23 @@ Mantén tus respuestas bien formateadas, usando negritas para destacar y respond
       parts: [{ text: m.content }]
     }));
 
-    // The last message is the prompt to send
-    const lastMsg = chatHistory[chatHistory.length - 1];
-    const previousHistory = chatHistory.slice(0, chatHistory.length - 1);
-
-    const chatInstance = ai.chats.create({
-      model: 'gemini-2.5-flash', // NOTA: He actualizado a un modelo oficial de producción como gemini-2.5-flash
+    // Uso correcto del método unificado del SDK moderno para generar contenido con historial
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: chatHistory,
       config: {
         systemInstruction: systemPrompt,
-      },
-      history: previousHistory
+      }
     });
 
-    const response = await chatInstance.sendMessage({
-      message: lastMsg.parts[0].text
-    });
+    const replyText = response.text || "Lo siento, no pude procesar la respuesta en este momento.";
+    return res.json({ result: replyText });
 
-    return res.json({ result: response.text });
   } catch (error: any) {
     console.error('Error in /api/ai-helper:', error);
-    return res.status(500).json({ error: 'Error del asistente de inteligencia artificial.' + (error.message ? ` ${error.message}` : '') });
+    return res.status(500).json({ 
+      error: 'Error del asistente de inteligencia artificial.' + (error.message ? ` ${error.message}` : '') 
+    });
   }
 });
 
