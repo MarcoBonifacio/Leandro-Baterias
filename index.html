@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <script>
+      // Fix potential browser/iframe sandbox issues where window.fetch is a read-only getter on the prototype,
+      // which throws an error when any polyfill or library tries to assign to it (e.g. self.fetch = ...).
+      // We define a writable property with a custom getter/setter on window, self, globalThis and Window.prototype.
+      try {
+        if (typeof window !== 'undefined' && window.fetch) {
+          const originalFetch = window.fetch;
+          let currentFetch = originalFetch;
+          const descriptor = {
+            get() {
+              return currentFetch;
+            },
+            set(val) {
+              currentFetch = val;
+            },
+            configurable: true,
+            enumerable: true
+          };
+
+          const targets = [window, self, globalThis];
+          targets.forEach(target => {
+            if (target) {
+              try {
+                Object.defineProperty(target, 'fetch', descriptor);
+              } catch (e) {
+                // Ignore silent failures on targets
+              }
+            }
+          });
+
+          if (typeof Window !== 'undefined' && Window.prototype) {
+            try {
+              Object.defineProperty(Window.prototype, 'fetch', descriptor);
+            } catch (e) {
+              // Ignore silent failures on prototype
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Sandbox fetch polyfill error:', err);
+      }
+    </script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Leandro Baterías — Moura, Willard, Bosch, Heliar</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

@@ -1,0 +1,6 @@
+{
+  "name": "Leandro Baterías",
+  "description": "Tu tienda de baterías premium con buscador inteligente y auxilio de instalación a domicilio express.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
