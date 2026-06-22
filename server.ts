@@ -12,7 +12,6 @@ import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 
-// Solución para compatibilidad de rutas con ESM en entornos Node/Vercel
 const __filename = typeof globalThis.__filename !== 'undefined'
   ? globalThis.__filename
   : fileURLToPath(import.meta.url);
@@ -26,15 +25,13 @@ const PORT = 3000;
 
 app.use(express.json());
 
-// Diagnóstico local para consola: Te avisa si Node cargó el archivo .env correctamente
 console.log("¿GEMINI_API_KEY detectada?:", process.env.GEMINI_API_KEY ? "SÍ" : "NO");
 
-// Inicialización limpia según los estándares oficiales de @google/genai
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY || ''
 });
 
-// AI Assistant Help Chat endpoint
+// Endpoint del chat para Leando IA
 app.post('/api/ai-helper', async (req, res) => {
   try {
     const { messages } = req.body;
@@ -44,7 +41,6 @@ app.post('/api/ai-helper', async (req, res) => {
       return res.status(400).json({ error: 'Falta el historial de mensajes o formato inválido.' });
     }
 
-    // System instruction del bot comercial Leando IA
     const systemPrompt = `Eres "Leando IA", el asistente inteligente de Leandro Baterías, la tienda líder de baterías de alta gama en Perú (CAPSA, SOLITE, VARTA, ULTRABAT, ETNA, ENERJET).
 Tus objetivos principales son:
 1. Ayudar amablemente al usuario a elegir su batería ideal basándote en la marca de su vehículo, modelo, año y uso.
@@ -53,7 +49,6 @@ Tus objetivos principales son:
 4. Sugerir marcas premium como CAPSA, SOLITE, VARTA, ULTRABAT, ETNA, ENERJET.
 Mantén tus respuestas bien formateadas, usando negritas para destacar y respondiendo en un tono amigable, directo y enfocado en solucionar el problema de batería del cliente.`;
 
-    // Mapeo estructurado para mantener el historial compatible con la API de Google
     const contents = messages.map((m: any) => {
       const textContent = m.content || m.text || '';
       return {
@@ -78,17 +73,15 @@ Mantén tus respuestas bien formateadas, usando negritas para destacar y respond
 
   } catch (error: any) {
     console.error('--- ERROR CRÍTICO EN EL CHATBOT ---', error);
-    
-    // Bloque de contingencia si la clave no conecta a los servidores de Google
     return res.json({ 
       result: "¡Hola! Estoy experimentando una alta demanda de consultas técnicas sobre baterías. ¿Buscabas una batería **CAPSA**, **VARTA** o **ETNA** para tu vehículo? Dime el modelo y año para ayudarte temporalmente. (Nota de desarrollo: Verifica que tu clave real esté cargada en tu archivo .env o panel de Vercel)." 
     });
   }
 });
 
-// Configuración del servidor intermedio para entorno de Desarrollo (Vite) y Producción (Static Assets)
+// Configuración de entornos de ejecución
 async function setupServer() {
-  // Verificamos si NO estamos en la infraestructura Serverless de Vercel y es modo Desarrollo
+  // Solo levantamos el middleware de Vite en entorno de desarrollo local externo a Vercel
   if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -100,24 +93,15 @@ async function setupServer() {
       console.log(`Leandro Baterías server running locally on port ${PORT}`);
     });
   } else {
-    // En producción (Vercel), servimos los archivos estáticos desde dist
-    const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+    // En producción (Vercel), dejamos que las rutas del frontend se controlen de manera nativa por el vercel.json.
+    // Añadimos un endpoint de control por si necesitas verificar la salud de la API
+    app.get('/api/health', (req, res) => {
+      res.json({ status: "ok", message: "Leando IA Serverless Backend activo" });
     });
-
-    // Solo abrimos puerto continuo si se corre la build de producción localmente fuera de Vercel
-    if (!process.env.VERCEL) {
-      app.listen(PORT, '0.0.0.0', () => {
-        console.log(`Server listening on port ${PORT}`);
-      });
-    }
   }
 }
 
 setupServer();
 
-// ¡ESTA LÍNEA ES CRUCIAL PARA VERCEL SERVERLESS!
+// Exportación indispensable para que funcione en la infraestructura de Vercel
 export default app;
