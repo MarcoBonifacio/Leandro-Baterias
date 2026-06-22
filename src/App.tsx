@@ -14,7 +14,7 @@ import AiAssistant from './components/AiAssistant';
 import CartDrawer from './components/CartDrawer';
 import Footer from './components/Footer';
 import AuthModal from './components/AuthModal';
-import { ShieldCheck, Sparkles, Award, Star, ArrowUp, AlertTriangle, BatteryCharging } from 'lucide-react';
+import { ShieldCheck, Sparkles, Award, Star, ArrowUp, AlertTriangle } from 'lucide-react';
 import { getProductsFromSupabase, supabase, getUserProfile, getCartFromSupabase, saveCartToSupabase } from './lib/supabase';
 import { BATTERY_PRODUCTS } from './data/batteryData';
 
@@ -45,6 +45,7 @@ export default function App() {
 
   // Listen to Session State with Supabase
   useEffect(() => {
+    // SALVAGUARDA 1: Si ya somos admin local, cancelamos por completo las peticiones automáticas a Supabase
     if (localStorage.getItem('admin_session') === 'true') {
       return;
     }
@@ -68,7 +69,9 @@ export default function App() {
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      // SALVAGUARDA 2: Evitamos que el listener en tiempo real altere el estado si el admin está logueado
       if (localStorage.getItem('admin_session') === 'true') return;
+      
       if (session?.user) {
         getUserProfile(session.user.id).then(profile => {
           if (profile) {
@@ -95,6 +98,9 @@ export default function App() {
   // Sincronizar y cargar el carrito guardado en la nube cuando el usuario inicia sesión
   useEffect(() => {
     if (currentUser) {
+      // SALVAGUARDA 3: El admin bypass no tiene base de datos de carritos reales
+      if (currentUser.id === 'admin-bypass-id') return;
+
       getCartFromSupabase(currentUser.id).then(dbCart => {
         if (dbCart && dbCart.length > 0) {
           setCart(dbCart);
@@ -107,7 +113,7 @@ export default function App() {
 
   // Guardar cambios del carrito local en Supabase si el usuario está autenticado
   useEffect(() => {
-    if (currentUser && cart.length >= 0) {
+    if (currentUser && currentUser.id !== 'admin-bypass-id' && cart.length >= 0) {
       saveCartToSupabase(currentUser.id, cart);
     }
   }, [cart, currentUser]);
@@ -229,7 +235,7 @@ export default function App() {
 
         {/* Brand highlights info strip */}
         <section className="bg-indigo-600 text-white py-4 border-y border-indigo-500/30 font-bold overflow-hidden shadow-sm">
-          <div className="flex justify-around items-center gap-6 text-[10px] sm:text-xs font-mono tracking-widest animate-marquee whitespace-nowrap select-none">
+          <div className="flex justify-around items-center gap-6 text-[10px] sm:text-xs font-mono tracking-widest overflow-x-auto whitespace-nowrap select-none">
             <div className="flex items-center gap-1.5 shrink-0">
               <Award className="h-4 w-4" />
               <span>COLOCACIÓN GRATIS DE BATERÍA</span>
@@ -314,7 +320,7 @@ export default function App() {
           rel="noreferrer"
           className="flex items-center gap-3 p-4 bg-white/95 border-2 border-red-500 font-sans rounded-2xl shadow-xl hover:bg-slate-50 transition-all group shadow-red-100"
         >
-          <div className="h-10 w-10 shrink-0 bg-red-105 bg-red-100 text-red-600 rounded-xl flex items-center justify-center animate-pulse">
+          <div className="h-10 w-10 shrink-0 bg-red-100 text-red-600 rounded-xl flex items-center justify-center animate-pulse">
             <AlertTriangle className="h-5 w-5" />
           </div>
           <div>
