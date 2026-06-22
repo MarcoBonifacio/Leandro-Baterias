@@ -12,8 +12,14 @@ import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// Solución híbrida para evitar el warning [empty-import-meta] en CommonJS (.cjs)
+const __filename = typeof globalThis.__filename !== 'undefined'
+  ? globalThis.__filename
+  : fileURLToPath(import.meta.url);
+
+const __dirname = typeof globalThis.__dirname !== 'undefined'
+  ? globalThis.__dirname
+  : path.dirname(__filename);
 
 const app = express();
 const PORT = 3000;
@@ -50,10 +56,6 @@ Tus objetivos principales son:
 Mantén tus respuestas bien formateadas, usando negritas para destacar y respondiendo en un tono amigable, directo y enfocado en solucionar el problema de batería del cliente.`;
 
     // Map message formats for Gemini Chats
-    // We can use the chat API by sending the conversation history
-    // Since we use the raw generateContent or chats.create, let's map messages format
-    // mapped to { role: string, parts: [{ text: string }] }
-    // Roles in gemini: "user" and "model".
     const chatHistory = messages.map((m: any) => ({
       role: m.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: m.content }]
@@ -64,7 +66,7 @@ Mantén tus respuestas bien formateadas, usando negritas para destacar y respond
     const previousHistory = chatHistory.slice(0, chatHistory.length - 1);
 
     const chatInstance = ai.chats.create({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-2.5-flash', // NOTA: He actualizado a un modelo oficial de producción como gemini-2.5-flash
       config: {
         systemInstruction: systemPrompt,
       },
