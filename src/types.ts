@@ -18,7 +18,7 @@ export interface BatteryProduct {
   type: 'Plomo-Ácido' | 'EFB' | 'AGM' | 'Gel';
   description: string;
   popular?: boolean;
-  stock: boolean;
+  stock: number;
   imageUrl?: string;
 }
 
@@ -71,5 +71,32 @@ export interface UserProfile {
   phone: string;
   role?: string;
   createdAt?: string;
+}
+
+export interface HistoricalOrderItem {
+  id?: string;
+  product_id: string;
+  product_title: string;
+  quantity: number;
+  unit_price: number;
+}
+
+export interface HistoricalOrder {
+  id: string;
+  user_id?: string;
+  customer_name: string;
+  email?: string;
+  phone_number?: string;
+  document_id?: string;
+  receipt_type?: string;
+  date: string;
+  shipping_address?: string;
+  subtotal: number;
+  taxes: number;
+  total: number;
+  status: string;
+  items: HistoricalOrderItem[];
+  vehicle_info?: string;
+  payment_method?: string;
 }
 

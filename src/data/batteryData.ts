@@ -5,7 +5,7 @@
 
 import { BatteryProduct, VehicleRecommendation, DiagnosticQuestion } from '../types';
 
-export const BATTERY_PRODUCTS: BatteryProduct[] = [
+export const BATTERY_PRODUCTS: (Omit<BatteryProduct, 'stock'> & { stock: boolean | number })[] = [
   // --- CAPSA ---
   {
     id: 'capsa-u1r-500',
@@ -923,7 +923,7 @@ export const BATTERY_PRODUCTS: BatteryProduct[] = [
     type: 'Plomo-Ácido',
     description: 'Máxima confiabilidad en climas con alto porcentaje de humedad de las zonas costeras nacionales.',
     stock: true,
-    imageUrl: 'https://www.enerjet.com.pe/next/image?url=https%3A%2F%2Fwww.enerjet.com.pe%2Fadmin%2Fuploads%2F13w75.png&w=3840&q=75'
+    imageUrl: 'https://www.enerjet.com.pe/_next/image?url=https%3A%2F%2Fwww.enerjet.com.pe%2Fadmin%2Fuploads%2F13w75.png&w=3840&q=75'
   },
   {
     id: 'enerjet-13s85',

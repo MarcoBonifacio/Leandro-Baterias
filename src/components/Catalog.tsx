@@ -7,6 +7,7 @@ import React, { useState, useMemo } from 'react';
 import { Search, SlidersHorizontal, Check, AlertCircle, ShoppingCart, HelpCircle, Eye, ShieldAlert, Award, Plus, X, Pencil, Trash2 } from 'lucide-react';
 import { BatteryProduct, UserProfile } from '../types';
 import { addProductToSupabase, updateProductInSupabase, deleteProductFromSupabase } from '../lib/supabase';
+import { BatteryImage } from './BatteryImage';
 
 interface CatalogProps {
   products: BatteryProduct[];
@@ -54,6 +55,7 @@ export default function Catalog({
     type: 'Plomo-Ácido' as 'Plomo-Ácido' | 'EFB' | 'AGM' | 'Gel',
     description: '',
     imageUrl: '',
+    stock: 15,
   });
 
   // Delete State
@@ -74,6 +76,7 @@ export default function Catalog({
     type: 'Plomo-Ácido' as 'Plomo-Ácido' | 'EFB' | 'AGM' | 'Gel',
     description: '',
     imageUrl: '',
+    stock: 15,
   });
 
   const handleAddNewBatterySubmit = async (e: React.FormEvent) => {
@@ -87,7 +90,7 @@ export default function Catalog({
     try {
       const savedProd = await addProductToSupabase({
         ...newBattery,
-        stock: true,
+        stock: Number(newBattery.stock || 0),
         popular: false,
         price: Number(newBattery.price),
         amperage: Number(newBattery.amperage),
@@ -115,6 +118,7 @@ export default function Catalog({
         type: 'Plomo-Ácido',
         description: '',
         imageUrl: '',
+        stock: 15,
       });
       setIsAddModalOpen(false);
     } catch (err: any) {
@@ -141,6 +145,7 @@ export default function Catalog({
       type: prod.type,
       description: prod.description,
       imageUrl: prod.imageUrl || '',
+      stock: prod.stock !== undefined ? Number(prod.stock) : 15,
     });
     setErrorMsg(null);
     setIsEditModalOpen(true);
@@ -171,7 +176,7 @@ export default function Catalog({
         type: editBattery.type,
         description: editBattery.description,
         imageUrl: editBattery.imageUrl,
-        stock: editingProduct.stock,
+        stock: Number(editBattery.stock || 0),
       });
 
       if (onProductUpdated) {
@@ -183,6 +188,7 @@ export default function Catalog({
           voltage: Number(editBattery.voltage),
           cca: Number(editBattery.cca),
           warrantyMonths: Number(editBattery.warrantyMonths),
+          stock: Number(editBattery.stock || 0),
         });
       }
 
@@ -310,7 +316,7 @@ export default function Catalog({
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
             <input
               type="text"
-              placeholder="Buscar por marca, modelo o amperaje (ej: Moura 75)..."
+              placeholder="Buscar por marca, modelo o amperaje (ej: Varta 75)..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               className="w-full bg-white border border-slate-200 focus:border-indigo-500 focus:outline-none placeholder-slate-400 text-slate-800 text-sm pl-10 pr-4 py-3 rounded-xl transition-all font-sans shadow-sm"
@@ -362,21 +368,37 @@ export default function Catalog({
                   </h3>
                 </div>
 
-                {prod.popular && (
-                  <span className="bg-indigo-600 text-white text-[10px] uppercase font-bold px-2.5 py-1 rounded-lg shadow-sm">
-                    Recomendado
-                  </span>
-                )}
+                <div className="flex flex-col items-end gap-1 shrink-0">
+                  {prod.popular && (
+                    <span className="bg-indigo-600 text-white text-[10px] uppercase font-bold px-2.5 py-1 rounded-lg shadow-sm">
+                      Recomendado
+                    </span>
+                  )}
+                  {prod.stock > 0 ? (
+                    prod.stock <= 5 ? (
+                      <span className="bg-amber-50 text-amber-700 border border-amber-100 text-[10px] uppercase font-bold px-2 py-0.5 rounded-lg">
+                        ¡Solo {prod.stock} disp.!
+                      </span>
+                    ) : (
+                      <span className="bg-emerald-50 text-emerald-700 border border-emerald-100 text-[10px] uppercase font-bold px-2 py-0.5 rounded-lg">
+                        {prod.stock} en stock
+                      </span>
+                    )
+                  ) : (
+                    <span className="bg-rose-50 text-rose-700 border border-rose-100 text-[10px] uppercase font-bold px-2 py-0.5 rounded-lg">
+                      Agotado
+                    </span>
+                  )}
+                </div>
               </div>
 
               {/* Product Image */}
               {prod.imageUrl && (
                 <div className="my-4 h-40 bg-slate-50/70 rounded-2xl overflow-hidden flex items-center justify-center p-4 border border-slate-100 group relative">
-                  <img 
-                    src={prod.imageUrl} 
-                    alt={`${prod.brand} ${prod.model}`} 
-                    className="max-h-full max-w-full object-contain hover:scale-[1.03] transition-all duration-355 duration-300"
-                    referrerPolicy="no-referrer"
+                  <BatteryImage 
+                    imageUrl={prod.imageUrl} 
+                    brand={prod.brand} 
+                    model={prod.model} 
                   />
                 </div>
               )}
@@ -485,11 +507,10 @@ export default function Catalog({
                 {/* Image in modal */}
                 {selectedProduct.imageUrl && (
                   <div className="h-44 bg-slate-50 rounded-2xl overflow-hidden flex items-center justify-center p-4 border border-slate-100 my-4">
-                    <img 
-                      src={selectedProduct.imageUrl} 
-                      alt={`${selectedProduct.brand} ${selectedProduct.model}`} 
-                      className="max-h-full max-w-full object-contain"
-                      referrerPolicy="no-referrer"
+                    <BatteryImage 
+                      imageUrl={selectedProduct.imageUrl} 
+                      brand={selectedProduct.brand} 
+                      model={selectedProduct.model} 
                     />
                   </div>
                 )}
@@ -519,6 +540,12 @@ export default function Catalog({
                   <div className="p-2 bg-slate-50 rounded border border-slate-200">
                     <p className="text-slate-400 uppercase text-[9px]">Voltaje de Celda</p>
                     <p className="text-slate-800 font-bold mt-0.5">{selectedProduct.voltage}V Nominales</p>
+                  </div>
+                  <div className="p-2 bg-slate-50 rounded border border-slate-200 col-span-2">
+                    <p className="text-slate-400 uppercase text-[9px]">Unidades Disponibles en Almacén</p>
+                    <p className={`font-bold mt-0.5 ${selectedProduct.stock > 0 ? (selectedProduct.stock <= 5 ? 'text-amber-600' : 'text-emerald-600') : 'text-rose-600'}`}>
+                      {selectedProduct.stock > 0 ? `${selectedProduct.stock} Unidades` : 'Sin Stock / Agotado'}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -590,7 +617,7 @@ export default function Catalog({
                     <input
                       type="text"
                       required
-                      placeholder="Ej. Moura, Bosch, Willard"
+                      placeholder="Ej. Capsa, Varta, Solite"
                       value={newBattery.brand}
                       onChange={(e) => setNewBattery({ ...newBattery, brand: e.target.value })}
                       className="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:border-indigo-600 focus:outline-none focus:ring-1 focus:ring-indigo-600 p-2.5 text-xs font-bold text-slate-800 rounded-xl transition-all"
@@ -710,7 +737,7 @@ export default function Catalog({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-3">
                   {/* Price */}
                   <div className="space-y-1">
                     <label className="text-[10px] font-mono text-slate-500 uppercase font-black pl-1">Precio (Soles PEN) *</label>
@@ -724,9 +751,22 @@ export default function Catalog({
                     />
                   </div>
 
+                  {/* Stock */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-mono text-slate-500 uppercase font-black pl-1">Unidades Stock *</label>
+                    <input
+                      type="number"
+                      min={0}
+                      required
+                      value={newBattery.stock}
+                      onChange={(e) => setNewBattery({ ...newBattery, stock: parseInt(e.target.value) || 0 })}
+                      className="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:border-indigo-600 focus:outline-none focus:ring-1 focus:ring-indigo-600 p-2.5 text-xs font-bold text-slate-800 rounded-xl transition-all"
+                    />
+                  </div>
+
                   {/* Dimensions */}
                   <div className="space-y-1">
-                    <label className="text-[10px] font-mono text-slate-500 uppercase font-black pl-1">Dimensiones (An x L x Al)</label>
+                    <label className="text-[10px] font-mono text-slate-500 uppercase font-black pl-1">Dimensiones</label>
                     <input
                       type="text"
                       placeholder="Ej. 242x175x190 mm"
@@ -822,7 +862,7 @@ export default function Catalog({
                     <input
                       type="text"
                       required
-                      placeholder="Ej. Moura, Bosch, Willard"
+                      placeholder="Ej. Capsa, Varta, Solite"
                       value={editBattery.brand}
                       onChange={(e) => setEditBattery({ ...editBattery, brand: e.target.value })}
                       className="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:border-indigo-600 focus:outline-none focus:ring-1 focus:ring-indigo-600 p-2.5 text-xs font-bold text-slate-800 rounded-xl transition-all"
@@ -942,7 +982,7 @@ export default function Catalog({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-3">
                   {/* Price */}
                   <div className="space-y-1">
                     <label className="text-[10px] font-mono text-slate-500 uppercase font-black pl-1">Precio (Soles PEN) *</label>
@@ -956,9 +996,22 @@ export default function Catalog({
                     />
                   </div>
 
+                  {/* Stock */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-mono text-slate-500 uppercase font-black pl-1">Unidades Stock *</label>
+                    <input
+                      type="number"
+                      min={0}
+                      required
+                      value={editBattery.stock}
+                      onChange={(e) => setEditBattery({ ...editBattery, stock: parseInt(e.target.value) || 0 })}
+                      className="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:border-indigo-600 focus:outline-none focus:ring-1 focus:ring-indigo-600 p-2.5 text-xs font-bold text-slate-800 rounded-xl transition-all"
+                    />
+                  </div>
+
                   {/* Dimensions */}
                   <div className="space-y-1">
-                    <label className="text-[10px] font-mono text-slate-500 uppercase font-black pl-1">Dimensiones (An x L x Al)</label>
+                    <label className="text-[10px] font-mono text-slate-500 uppercase font-black pl-1">Dimensiones</label>
                     <input
                       type="text"
                       placeholder="Ej. 242x175x190 mm"

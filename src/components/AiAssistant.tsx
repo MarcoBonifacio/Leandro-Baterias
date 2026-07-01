@@ -33,9 +33,9 @@ export default function AiAssistant() {
 
   const presetQuestions = [
     { label: 'Recomiéndame para Toyota Yaris 2020', query: '¿Qué batería me recomiendas para un Toyota Yaris del año 2020?' },
-    { label: '¿Por qué elegir baterías Moura?', query: '¿Cuáles son los beneficios principales de las baterías de la marca Moura?' },
-    { label: '¿Qué significa el CCA de una batería?', query: '¿Qué es el CCA (Cold Cranking Amps) y por qué importa en Lima?' },
-    { label: '¿Tienen envío e instalación express?', query: '¿Cómo funciona su servicio de delivery, diagnóstico e instalación de baterías a domicilio?' }
+    { label: '¿Por qué elegir baterías VARTA o CAPSA?', query: '¿Cuáles son los beneficios principales de las baterías de las marcas VARTA y CAPSA?' },
+    { label: '¿Cómo influye la altura de Cusco en la batería?', query: '¿Cómo influye la altura y el frío extremo de Cusco en el arranque y la batería de mi vehículo, y qué CCA necesito?' },
+    { label: '¿Tienen envío e instalación express?', query: '¿Cómo funciona su servicio de delivery, diagnóstico e instalación de baterías a domicilio en Cusco-Cusco?' }
   ];
 
   const handleSendMessage = async (textToSend: string) => {

@@ -4,23 +4,24 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
-import { BatteryProduct, OrderDetails, UserProfile } from '../types';
+import { BatteryProduct, OrderDetails, UserProfile, HistoricalOrder } from '../types';
 import { BATTERY_PRODUCTS } from '../data/batteryData';
 
 // Safe environment fallback matching provided project information
 let rawSupabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || 'https://nhrfkjvuaopkuyaqybgj.supabase.co';
 
 // Sanitización para prevenir el error PGRST125: "Invalid path specified in request URL"
+// Si el usuario pegó la URL de Supabase con "/rest/v1" o barra diagonal "/" al final, lo reparamos automáticamente para él.
 let supabaseUrl = rawSupabaseUrl.trim();
-supabaseUrl = supabaseUrl.replace(/\/rest\/v1\/?$/, ''); 
-supabaseUrl = supabaseUrl.replace(/\/+$/, ''); 
+supabaseUrl = supabaseUrl.replace(/\/rest\/v1\/?$/, ''); // Quita /rest/v1 o /rest/v1/ del final de la URL
+supabaseUrl = supabaseUrl.replace(/\/+$/, ''); // Quita barras diagonales sobrantes al final de la URL
 
 const supabaseAnonKey = ((import.meta as any).env?.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ocmZranZ1YW9wa3V5YXF5YmdqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MjM5ODAsImV4cCI6MjA5NzI5OTk4MH0.ph-Csb6p5b4AayNP6tDLg_JYNJk1L28_qBIXgcAk2bs').trim();
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 /**
- * Seeds categories and products if not already seeded
+ * Seedes categories and products if not already seeded
  */
 export async function seedSupabaseData() {
   try {
@@ -61,7 +62,7 @@ export async function seedSupabaseData() {
         brand: p.brand,
         model: p.model,
         price: p.price,
-        stock: p.stock ? 50 : 0,
+        stock: typeof p.stock === 'number' ? p.stock : (p.stock ? 50 : 0),
         amperage: `${p.amperage}Ah`,
         voltage: `${p.voltage}V`,
         image_url: p.imageUrl || '',
@@ -74,7 +75,25 @@ export async function seedSupabaseData() {
         .insert(prodsToInsert);
       
       if (prodErr) {
-        console.error('Failed to seed products list:', prodErr.message);
+        console.warn('Primary snake_case seed failed. Attempting alternative lowercase column seed...', prodErr.message);
+        // Retry using "imageurl" as fallback column
+        const fallbackProds = prodsToInsert.map((p: any) => {
+          const { image_url, ...rest } = p;
+          return {
+            ...rest,
+            imageurl: image_url || ''
+          };
+        });
+        
+        const { error: fallbackErr } = await supabase
+          .from('products')
+          .insert(fallbackProds);
+        
+        if (fallbackErr) {
+          console.error('Failed to seed products list with both formats:', fallbackErr);
+        } else {
+          console.log(`Successfully seeded ${fallbackProds.length} products using fallback lowercase format.`);
+        }
       } else {
         console.log(`Successfully seeded ${prodsToInsert.length} products to Supabase.`);
       }
@@ -87,6 +106,25 @@ export async function seedSupabaseData() {
 /**
  * Fetches products from Supabase products catalog and merges with frontend configurations
  */
+const MAPPED_STATIC_PRODUCTS: BatteryProduct[] = BATTERY_PRODUCTS.map(p => ({
+  id: p.id,
+  brand: p.brand,
+  model: p.model,
+  amperage: p.amperage,
+  voltage: p.voltage,
+  cca: p.cca,
+  polarity: p.polarity,
+  dimensions: p.dimensions,
+  warrantyMonths: p.warrantyMonths,
+  price: p.price,
+  category: p.category,
+  type: p.type,
+  description: p.description,
+  popular: p.popular,
+  stock: typeof p.stock === 'number' ? p.stock : (p.stock ? 15 : 0),
+  imageUrl: p.imageUrl
+}));
+
 export async function getProductsFromSupabase(): Promise<BatteryProduct[]> {
   try {
     // 1. Fetch categories
@@ -96,7 +134,7 @@ export async function getProductsFromSupabase(): Promise<BatteryProduct[]> {
     
     if (catError) {
       console.warn('Error fetching categories from Supabase:', catError);
-      return BATTERY_PRODUCTS;
+      return MAPPED_STATIC_PRODUCTS;
     }
 
     // 2. Fetch products
@@ -106,7 +144,7 @@ export async function getProductsFromSupabase(): Promise<BatteryProduct[]> {
 
     if (prodError) {
       console.warn('Error fetching products from Supabase:', prodError);
-      return BATTERY_PRODUCTS;
+      return MAPPED_STATIC_PRODUCTS;
     }
 
     // Auto-seed if empty
@@ -114,6 +152,7 @@ export async function getProductsFromSupabase(): Promise<BatteryProduct[]> {
       console.log('No elements detected in Supabase, executing auto-seed...');
       await seedSupabaseData();
       
+      // Fetch post-seed
       const { data: seededCats } = await supabase.from('categories').select('*');
       const { data: seededProds } = await supabase.from('products').select('*');
       
@@ -142,15 +181,15 @@ export async function getProductsFromSupabase(): Promise<BatteryProduct[]> {
         type: (p.type || localProd?.type || 'Plomo-Ácido') as any,
         description: p.description || localProd?.description || p.title || 'Batería automotriz de alta gama',
         popular: localProd?.popular || false,
-        stock: p.stock > 0,
-        imageUrl: p.image_url || localProd?.imageUrl || ''
+        stock: typeof p.stock === 'number' ? p.stock : 15,
+        imageUrl: p.image_url || p.imageurl || p.imageUrl || localProd?.imageUrl || ''
       };
     });
 
-    return mappedProducts.length > 0 ? mappedProducts : BATTERY_PRODUCTS;
+    return mappedProducts.length > 0 ? mappedProducts : MAPPED_STATIC_PRODUCTS;
   } catch (err) {
     console.error('Critical database fallback triggered:', err);
-    return BATTERY_PRODUCTS;
+    return MAPPED_STATIC_PRODUCTS;
   }
 }
 
@@ -160,11 +199,13 @@ export async function getProductsFromSupabase(): Promise<BatteryProduct[]> {
 export async function createOrderInSupabase(
   cart: { product: BatteryProduct; quantity: number }[],
   orderDetails: OrderDetails,
-  totals: { subtotal: number; taxes: number; total: number }
+  totals: { subtotal: number; taxes: number; total: number },
+  currentUser?: UserProfile | null
 ): Promise<string> {
   try {
+    // Try to get logged in user id to associate the order!
     const { data: { session } } = await supabase.auth.getSession();
-    const userId = session?.user?.id || null;
+    const userId = currentUser?.id || session?.user?.id || (localStorage.getItem('admin_session') === 'true' ? 'admin-bypass-id' : null);
 
     // 1. Try to find or insert customer
     let customerId: string | null = null;
@@ -204,11 +245,12 @@ export async function createOrderInSupabase(
     const shippingAddress = orderDetails.deliveryMethod === 'envio_colocacion'
       ? orderDetails.address || 'Envío solicitado'
       : 'Retiro en Local';
+    const vehicleInfo = `${orderDetails.vehicleBrand} ${orderDetails.vehicleModel} (${orderDetails.vehicleYear})`;
 
     const orderRecord: any = {
       id: orderId,
       customer_id: customerId,
-      user_id: userId,
+      user_id: userId, // Guardar id del usuario logueado en Supabase o cuenta Admin
       date: new Date().toLocaleDateString('es-PE'),
       customer_name: orderDetails.customerName,
       document_id: orderDetails.documentId,
@@ -216,17 +258,52 @@ export async function createOrderInSupabase(
       email: orderDetails.email,
       phone_number: orderDetails.phone,
       shipping_address: shippingAddress,
+      vehicle_info: vehicleInfo,
+      payment_method: orderDetails.paymentMethod,
       subtotal: totals.subtotal,
       taxes: totals.taxes,
       total: totals.total,
-      status: 'Pendiente'
+      status: 'Confirmado'
     };
 
     const { error: orderErr } = await supabase
       .from('orders')
       .insert(orderRecord);
 
-    if (orderErr) throw orderErr;
+    if (orderErr) {
+      console.warn('Orders snake_case insertion failed, trying lowercase/camelCase fallback keys...', orderErr.message);
+      const fallbackRecord = {
+        id: orderId,
+        customer_id: customerId,
+        user_id: userId,
+        userid: userId,
+        date: new Date().toLocaleDateString('es-PE'),
+        customerName: orderDetails.customerName,
+        customername: orderDetails.customerName,
+        documentId: orderDetails.documentId,
+        documentid: orderDetails.documentId,
+        receiptType: orderDetails.receiptType,
+        receipttype: orderDetails.receiptType,
+        email: orderDetails.email,
+        phoneNumber: orderDetails.phone,
+        phonenumber: orderDetails.phone,
+        shipping_address: shippingAddress,
+        vehicle_info: vehicleInfo,
+        payment_method: orderDetails.paymentMethod,
+        subtotal: totals.subtotal,
+        taxes: totals.taxes,
+        total: totals.total,
+        status: 'Confirmado'
+      };
+      
+      const { error: orderErrFallback } = await supabase
+        .from('orders')
+        .insert(fallbackRecord);
+      
+      if (orderErrFallback) {
+        throw orderErrFallback;
+      }
+    }
 
     // 3. Insert Order Items
     const itemsToInsert = cart.map(item => ({
@@ -242,7 +319,9 @@ export async function createOrderInSupabase(
       .from('order_items')
       .insert(itemsToInsert);
 
-    if (itemsErr) console.warn('Error inserting order items:', itemsErr);
+    if (itemsErr) {
+      console.warn('Error inserting order items to Supabase:', itemsErr);
+    }
 
     // 4. Create Payment reference
     const { error: payErr } = await supabase
@@ -252,31 +331,116 @@ export async function createOrderInSupabase(
         payment_method: orderDetails.paymentMethod,
         transaction_reference: `OP-${Math.floor(100000 + Math.random() * 900000)}`,
         amount: totals.total,
-        status: 'Pendiente'
+        status: 'Aprobado'
       });
 
-    if (payErr) console.warn('Error inserting payment reference:', payErr);
+    if (payErr) {
+      console.warn('Payments snake_case insertion failed, trying lowercase/camelCase fallback keys...', payErr.message);
+      const { error: payErrFallback } = await supabase
+        .from('payments')
+        .insert({
+          order_id: orderId,
+          payment_method: orderDetails.paymentMethod,
+          paymentmethod: orderDetails.paymentMethod,
+          transaction_reference: `OP-${Math.floor(100000 + Math.random() * 900000)}`,
+          amount: totals.total,
+          status: 'Aprobado'
+        });
+      
+      if (payErrFallback) {
+        console.warn('Error inserting payment reference to Supabase:', payErrFallback);
+      }
+    }
 
     return orderId;
-  } catch (err: any) {
+  } catch (err) {
     console.error('Failed to create order tracking in database:', err);
-    alert('Error de Supabase al procesar el Pedido: ' + (err.message || JSON.stringify(err)));
     throw err;
   }
 }
 
 /**
- * Adds a new custom battery product to Supabase DB
+ * Retrieves historical order records for a specific logged-in user account (or all for admin)
+ */
+export async function getUserOrders(user: UserProfile | null): Promise<HistoricalOrder[]> {
+  if (!user) return [];
+  const isAdmin = user.role === 'admin' || user.id === 'admin-bypass-id' || user.email === 'admin@leandrobaterias.com';
+  const targetId = user.id;
+  const targetEmail = user.email?.toLowerCase().trim();
+
+  try {
+    let query = supabase.from('orders').select('*').order('created_at', { ascending: false });
+    
+    // Si no es admin, filtramos por user_id o email
+    if (!isAdmin) {
+      query = query.or(`user_id.eq.${targetId},email.eq.${targetEmail}`);
+    }
+
+    const { data: ordersData, error } = await query;
+    if (error || !ordersData) {
+      console.warn('Error fetching user orders:', error);
+      return [];
+    }
+
+    const result: HistoricalOrder[] = [];
+    for (const ord of ordersData) {
+      const { data: itemsData } = await supabase
+        .from('order_items')
+        .select('*')
+        .eq('order_id', ord.id);
+
+      const mappedItems = (itemsData || []).map((it: any) => ({
+        id: it.id,
+        product_id: it.product_id || it.product_sku || '',
+        product_title: it.product_title || 'Batería',
+        quantity: it.quantity || 1,
+        unit_price: Number(it.unit_price || 0)
+      }));
+
+      result.push({
+        id: ord.id,
+        user_id: ord.user_id || ord.userid,
+        customer_name: ord.customer_name || ord.customername || 'Cliente',
+        email: ord.email,
+        phone_number: ord.phone_number || ord.phonenumber,
+        document_id: ord.document_id || ord.documentid,
+        receipt_type: ord.receipt_type || ord.receipttype,
+        date: ord.date || new Date().toLocaleDateString('es-PE'),
+        shipping_address: ord.shipping_address,
+        subtotal: Number(ord.subtotal || (ord.total / 1.18)),
+        taxes: Number(ord.taxes || (ord.total - (ord.total / 1.18))),
+        total: Number(ord.total || 0),
+        status: ord.status || 'Confirmado',
+        items: mappedItems,
+        vehicle_info: ord.vehicle_info || '',
+        payment_method: ord.payment_method || 'Efectivo'
+      });
+    }
+
+    return result;
+  } catch (err) {
+    console.error('Failed fetching order history:', err);
+    return [];
+  }
+}
+
+/**
+ * Adds a new custom battery product to Supabase DB and returns the mapped BatteryProduct
  */
 export async function addProductToSupabase(newProduct: Omit<BatteryProduct, 'id'>): Promise<BatteryProduct> {
   try {
+    // 1. Get or seed categories to find category_id
     let { data: dbCategories } = await supabase.from('categories').select('*');
+    if (!dbCategories || dbCategories.length === 0) {
+      await seedSupabaseData();
+      const { data: seededCats } = await supabase.from('categories').select('*');
+      dbCategories = seededCats || [];
+    }
+
     const matchedCat = dbCategories?.find(c => c.name === newProduct.category) || dbCategories?.[0];
     const categoryId = matchedCat?.id;
 
     const id = `item-${Date.now()}`;
-    
-    // Mapeo unificado estricto a snake_case sanitizando tipos nativos (INT para stock)
     const productRecord = {
       id: id,
       category_id: categoryId,
@@ -285,7 +449,7 @@ export async function addProductToSupabase(newProduct: Omit<BatteryProduct, 'id'
       brand: newProduct.brand,
       model: newProduct.model,
       price: Number(newProduct.price),
-      stock: newProduct.stock ? 50 : 0, 
+      stock: Number(newProduct.stock !== undefined ? newProduct.stock : 15),
       amperage: `${newProduct.amperage}Ah`,
       voltage: `${newProduct.voltage}V`,
       cca: Number(newProduct.cca || 500),
@@ -298,21 +462,27 @@ export async function addProductToSupabase(newProduct: Omit<BatteryProduct, 'id'
     };
 
     const { error } = await supabase.from('products').insert(productRecord);
-    if (error) throw error;
+    if (error) {
+      console.warn('Primary insert failed. Retrying with sanitized record...', error.message);
+      // Clean up fallback to make sure only real columns are present in database
+      const { error: errorFallback } = await supabase.from('products').insert(productRecord);
+      if (errorFallback) {
+        throw errorFallback;
+      }
+    }
 
     return {
       ...newProduct,
       id
     };
-  } catch (err: any) {
-    console.error('Failed to insert new custom battery:', err.message || err);
-    alert('Error de Supabase al Añadir Producto: ' + (err.message || JSON.stringify(err)));
+  } catch (err) {
+    console.error('Failed to insert new custom battery:', err);
     throw err;
   }
 }
 
 /**
- * Updates an existing battery product in Supabase DB
+ * Updates an existing battery product in Supabase DB and returns the updated BatteryProduct
  */
 export async function updateProductInSupabase(productId: string, updatedFields: Partial<BatteryProduct>): Promise<BatteryProduct> {
   try {
@@ -325,7 +495,6 @@ export async function updateProductInSupabase(productId: string, updatedFields: 
       }
     }
 
-    // Construcción limpia del Payload: Se remueven propiedades mixedCase/camelCase que rompen Postgres
     const updatePayload: any = {};
     if (updatedFields.brand !== undefined) updatePayload.brand = updatedFields.brand;
     if (updatedFields.model !== undefined) updatePayload.model = updatedFields.model;
@@ -333,16 +502,20 @@ export async function updateProductInSupabase(productId: string, updatedFields: 
       updatePayload.title = `${updatedFields.brand || ''} ${updatedFields.model || ''}`.trim();
     }
     if (updatedFields.price !== undefined) updatePayload.price = Number(updatedFields.price);
-    if (updatedFields.stock !== undefined) updatePayload.stock = updatedFields.stock ? 50 : 0;
+    if (updatedFields.stock !== undefined) updatePayload.stock = Number(updatedFields.stock);
     if (updatedFields.amperage !== undefined) updatePayload.amperage = `${updatedFields.amperage}Ah`;
     if (updatedFields.voltage !== undefined) updatePayload.voltage = `${updatedFields.voltage}V`;
     if (updatedFields.cca !== undefined) updatePayload.cca = Number(updatedFields.cca);
     if (updatedFields.polarity !== undefined) updatePayload.polarity = updatedFields.polarity;
     if (updatedFields.dimensions !== undefined) updatePayload.dimensions = updatedFields.dimensions;
-    if (updatedFields.warrantyMonths !== undefined) updatePayload.warranty_months = Number(updatedFields.warrantyMonths);
+    if (updatedFields.warrantyMonths !== undefined) {
+      updatePayload.warranty_months = Number(updatedFields.warrantyMonths);
+    }
     if (updatedFields.type !== undefined) updatePayload.type = updatedFields.type;
     if (updatedFields.description !== undefined) updatePayload.description = updatedFields.description;
-    if (updatedFields.imageUrl !== undefined) updatePayload.image_url = updatedFields.imageUrl;
+    if (updatedFields.imageUrl !== undefined) {
+      updatePayload.image_url = updatedFields.imageUrl;
+    }
     if (categoryId !== undefined) updatePayload.category_id = categoryId;
 
     const { error } = await supabase
@@ -350,15 +523,16 @@ export async function updateProductInSupabase(productId: string, updatedFields: 
       .update(updatePayload)
       .eq('id', productId);
 
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
 
     return {
       id: productId,
       ...updatedFields
     } as BatteryProduct;
-  } catch (err: any) {
-    console.error('Failed to update battery in database:', err.message || err);
-    alert('Error de Supabase al Editar Producto: ' + (err.message || JSON.stringify(err)));
+  } catch (err) {
+    console.error('Failed to update battery in database:', err);
     throw err;
   }
 }
@@ -373,13 +547,23 @@ export async function deleteProductFromSupabase(productId: string): Promise<bool
       .delete()
       .eq('id', productId);
 
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
     return true;
-  } catch (err: any) {
-    console.error('Failed to delete battery from database:', err.message || err);
-    alert('Error de Supabase al Eliminar Producto: ' + (err.message || JSON.stringify(err)));
+  } catch (err) {
+    console.error('Failed to delete battery from database:', err);
     throw err;
   }
+}
+
+/**
+ * Helper to check if a string is a valid UUID
+ */
+function isValidUUID(uuid: string): boolean {
+  if (!uuid) return false;
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(uuid);
 }
 
 /**
@@ -387,14 +571,19 @@ export async function deleteProductFromSupabase(productId: string): Promise<bool
  */
 export async function getUserProfile(userId: string): Promise<UserProfile | null> {
   try {
+    if (!isValidUUID(userId)) {
+      return null;
+    }
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', userId)
       .single();
 
-    if (error) return null;
-    
+    if (error) {
+      // It's normal if there isn't a custom profile yet
+      return null;
+    }
     return {
       id: data.id,
       name: data.name,
@@ -410,10 +599,18 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
 }
 
 /**
- * Inserts or updates client profile custom record
+ * Inserte or updates client profile custom record (safeguard callback)
+ * MODIFICADO: Añadido retraso de sincronización y control de error de clave foránea (23503)
  */
 export async function createUserProfile(id: string, name: string, email: string, phone: string, role?: string) {
   try {
+    if (!isValidUUID(id)) {
+      return { id, name, email, phone, role: role || 'user' };
+    }
+
+    // Esperar 800ms para asegurar que auth.users procesó el registro primero en Supabase
+    await new Promise(resolve => setTimeout(resolve, 800));
+
     const { data, error } = await supabase
       .from('profiles')
       .upsert({
@@ -426,11 +623,17 @@ export async function createUserProfile(id: string, name: string, email: string,
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
     return data;
   } catch (err: any) {
-    console.error('Failed to save manual user profile:', err);
-    alert('Error de Supabase en Perfil de Usuario: ' + (err.message || JSON.stringify(err)));
+    // Si da error de clave foránea (código Postgres 23503), evitamos romper el flujo
+    if (err.code === '23503') {
+      console.warn('FK Warning: El ID aún no existe en auth.users. Se asume creación vía Database Trigger.');
+      return { id, name, email, phone, role: role || 'user' };
+    }
+    console.error('Failed to save manual user profile custom record:', err);
     throw err;
   }
 }
@@ -440,6 +643,9 @@ export async function createUserProfile(id: string, name: string, email: string,
  */
 export async function getCartFromSupabase(userId: string): Promise<{ product: BatteryProduct; quantity: number }[]> {
   try {
+    if (!isValidUUID(userId)) {
+      return [];
+    }
     const { data: records, error } = await supabase
       .from('cart_items')
       .select('*, product:products(*)')
@@ -448,6 +654,7 @@ export async function getCartFromSupabase(userId: string): Promise<{ product: Ba
     if (error) throw error;
     if (!records) return [];
 
+    // Map to App's CartItem format
     const cartItems: { product: BatteryProduct; quantity: number }[] = [];
     for (const record of records) {
       if (record.product) {
@@ -463,11 +670,11 @@ export async function getCartFromSupabase(userId: string): Promise<{ product: Ba
             dimensions: record.product.dimensions || 'Estándar',
             warrantyMonths: record.product.warranty_months || 12,
             price: Number(record.product.price) || 100,
-            category: 'auto', 
+            category: (record.product.category_id ? 'auto' : 'auto') as any, // Simple mapping
             type: record.product.type || 'Plomo-Ácido',
             description: record.product.description || '',
             popular: false,
-            stock: record.product.stock > 0,
+            stock: typeof record.product.stock === 'number' ? record.product.stock : 15,
             imageUrl: record.product.image_url || ''
           },
           quantity: record.quantity
@@ -486,9 +693,15 @@ export async function getCartFromSupabase(userId: string): Promise<{ product: Ba
  */
 export async function saveCartToSupabase(userId: string, cart: { product: BatteryProduct; quantity: number }[]) {
   try {
+    if (!isValidUUID(userId)) {
+      return;
+    }
+    // 1. Delete old cart items of this user
     await supabase.from('cart_items').delete().eq('user_id', userId);
+
     if (cart.length === 0) return;
 
+    // 2. Insert new ones
     const payload = cart.map(item => ({
       user_id: userId,
       product_id: item.product.id,

@@ -31,12 +31,12 @@ export default function Hero({ onScrollToFinder, onScrollToCatalog, onScrollToDi
 
             <h2 className="text-4xl sm:text-5xl lg:text-6xl font-black text-slate-900 leading-[1.1] tracking-tight">
               La batería que tu <br className="hidden sm:inline" />
-              auto merece, <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 via-indigo-500 to-indigo-800">enviada y colocada</span> hoy mismo.
+              auto merece en Cusco, <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 via-indigo-500 to-indigo-800">enviada y colocada</span> hoy mismo.
             </h2>
 
             <p className="text-slate-500 text-base sm:text-lg max-w-2xl leading-relaxed">
-              Trabajamos con las marcas líderes del mercado nacional e internacional: <strong className="text-slate-800 font-bold">Moura, Willard, Bosch y Heliar</strong>. 
-              Garantizamos soluciones veloces y testeos de alternador sin cargo en tu propia cochera o local.
+              Trabajamos con las marcas líderes del mercado nacional e internacional: <strong className="text-slate-800 font-bold">CAPSA, SOLITE, VARTA, ULTRABAT, ETNA y ENERJET</strong>. 
+              Garantizamos soluciones veloces y testeos de alternador sin cargo en Cusco-Cusco (cochera o domicilio).
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 pt-2">
@@ -59,14 +59,18 @@ export default function Hero({ onScrollToFinder, onScrollToCatalog, onScrollToDi
             {/* Premium logos/badges endorsement */}
             <div className="pt-6 border-t border-slate-200 flex flex-wrap items-center gap-x-6 gap-y-3">
               <span className="text-xs text-slate-400 font-mono tracking-wider uppercase">Marcas avaladas</span>
-              <div className="flex items-center gap-4 text-sm font-black text-slate-500">
-                <span className="hover:text-indigo-600 transition-colors">MOURA</span>
+              <div className="flex items-center gap-4 text-sm font-black text-slate-500 flex-wrap">
+                <span className="hover:text-indigo-600 transition-colors">CAPSA</span>
                 <span className="text-indigo-300 font-normal">|</span>
-                <span className="hover:text-indigo-600 transition-colors">WILLARD</span>
+                <span className="hover:text-indigo-600 transition-colors">SOLITE</span>
                 <span className="text-indigo-300 font-normal">|</span>
-                <span className="hover:text-indigo-600 transition-colors">BOSCH</span>
+                <span className="hover:text-indigo-600 transition-colors">VARTA</span>
                 <span className="text-indigo-300 font-normal">|</span>
-                <span className="hover:text-indigo-600 transition-colors">HELIAR</span>
+                <span className="hover:text-indigo-600 transition-colors">ULTRABAT</span>
+                <span className="text-indigo-300 font-normal">|</span>
+                <span className="hover:text-indigo-600 transition-colors">ETNA</span>
+                <span className="text-indigo-300 font-normal">|</span>
+                <span className="hover:text-indigo-600 transition-colors">ENERJET</span>
               </div>
             </div>
           </div>

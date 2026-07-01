@@ -4,9 +4,10 @@
  */
 
 import React, { useState } from 'react';
-import { ShoppingBag, Trash2, ShieldCheck, MapPin, CreditCard, ChevronRight, X, Minus, Plus, MessageSquarePlus } from 'lucide-react';
-import { CartItem, OrderDetails, UserProfile } from '../types';
+import { ShoppingBag, Trash2, ShieldCheck, MapPin, CreditCard, ChevronRight, X, Minus, Plus, MessageSquarePlus, FileDown, CheckCircle2, ArrowRight } from 'lucide-react';
+import { CartItem, OrderDetails, UserProfile, HistoricalOrder } from '../types';
 import { createOrderInSupabase } from '../lib/supabase';
+import { generateOrderPDF } from '../lib/pdfGenerator';
 
 interface CartDrawerProps {
   isOpen: boolean;
@@ -16,6 +17,7 @@ interface CartDrawerProps {
   onRemoveItem: (productId: string) => void;
   currentUser: UserProfile | null;
   onLoginClick: () => void;
+  onClearCart?: () => void;
 }
 
 export default function CartDrawer({
@@ -26,7 +28,10 @@ export default function CartDrawer({
   onRemoveItem,
   currentUser,
   onLoginClick,
+  onClearCart,
 }: CartDrawerProps) {
+  const [completedOrder, setCompletedOrder] = useState<HistoricalOrder | null>(null);
+  const [completedWaUrl, setCompletedWaUrl] = useState<string>('');
   const [orderDetails, setOrderDetails] = useState<OrderDetails>({
     customerName: '',
     email: '',
@@ -83,23 +88,21 @@ export default function CartDrawer({
     if (cart.length === 0) return;
     setIsSubmitting(true);
 
-    let dbOrderId = 'N/A';
+    let dbOrderId = `ORD-${Date.now()}`;
+    const calcSubtotal = Number(finalTotal / 1.18);
+    const calcTaxes = Number(finalTotal - calcSubtotal);
+
     try {
-      // Calculate totals for Supabase table row
-      const calcSubtotal = Number(finalTotal / 1.18);
-      const calcTaxes = Number(finalTotal - calcSubtotal);
-      
       const createdId = await createOrderInSupabase(cart, orderDetails, {
         subtotal: Number(calcSubtotal.toFixed(2)),
         taxes: Number(calcTaxes.toFixed(2)),
         total: Number(finalTotal.toFixed(2))
-      });
+      }, currentUser);
       if (createdId) {
         dbOrderId = createdId;
       }
     } catch (err) {
       console.error('Error auto-syncing purchase to Supabase: ', err);
-      // Fail gracefully so we never block WhatsApp redirection if Supabase query fails!
     } finally {
       setIsSubmitting(false);
     }
@@ -141,6 +144,36 @@ export default function CartDrawer({
     const encodedMessage = encodeURIComponent(messageText);
     const whatsappUrl = `https://wa.me/51912345678?text=${encodedMessage}`;
 
+    const mappedItems = cart.map(item => ({
+      product_id: item.product.id,
+      product_title: `${item.product.brand} ${item.product.model}`,
+      quantity: item.quantity,
+      unit_price: item.product.price
+    }));
+
+    const confirmedOrd: HistoricalOrder = {
+      id: dbOrderId,
+      user_id: currentUser?.id || undefined,
+      customer_name: orderDetails.customerName,
+      email: orderDetails.email,
+      phone_number: orderDetails.phone,
+      document_id: orderDetails.documentId,
+      receipt_type: orderDetails.receiptType,
+      date: new Date().toLocaleDateString('es-PE'),
+      shipping_address: orderDetails.deliveryMethod === 'envio_colocacion' ? (orderDetails.address || 'Envío a domicilio') : 'Retiro en Local',
+      subtotal: Number(calcSubtotal.toFixed(2)),
+      taxes: Number(calcTaxes.toFixed(2)),
+      total: Number(finalTotal.toFixed(2)),
+      status: 'Confirmado',
+      items: mappedItems,
+      vehicle_info: `${orderDetails.vehicleBrand} ${orderDetails.vehicleModel} (${orderDetails.vehicleYear || ''})`.trim(),
+      payment_method: orderDetails.paymentMethod
+    };
+
+    setCompletedOrder(confirmedOrd);
+    setCompletedWaUrl(whatsappUrl);
+    if (onClearCart) onClearCart();
+
     // Open link
     window.open(whatsappUrl, '_blank');
   };
@@ -168,9 +201,50 @@ export default function CartDrawer({
 
           {/* Drawer Body content (scrolls) */}
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
-            
-            {/* Cart products list block */}
-            {cart.length === 0 ? (
+            {completedOrder ? (
+              <div className="flex flex-col items-center justify-center py-8 px-2 text-center space-y-6 animate-fadeIn">
+                <div className="h-16 w-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center shadow-inner">
+                  <CheckCircle2 className="h-10 w-10" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">¡Pedido Registrado!</h3>
+                  <p className="text-xs font-mono text-indigo-600 font-bold bg-indigo-50 py-1 px-3 rounded-full inline-block mt-2 border border-indigo-100">
+                    ID: {completedOrder.id}
+                  </p>
+                  <p className="text-xs text-slate-500 mt-3 leading-relaxed">
+                    Tu orden de colocación ha sido procesada. Podés descargar tu comprobante oficial en PDF o continuar el despacho en WhatsApp.
+                  </p>
+                </div>
+
+                <div className="w-full space-y-3 pt-4">
+                  <button
+                    onClick={() => generateOrderPDF(completedOrder)}
+                    className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 px-4 rounded-xl shadow-md transition-all cursor-pointer text-xs uppercase tracking-wide hover:scale-[1.02]"
+                  >
+                    <FileDown className="h-4 w-4" />
+                    <span>Descargar Comprobante PDF</span>
+                  </button>
+
+                  <button
+                    onClick={() => window.open(completedWaUrl, '_blank')}
+                    className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 px-4 rounded-xl shadow-md transition-all cursor-pointer text-xs uppercase tracking-wide hover:scale-[1.02]"
+                  >
+                    <MessageSquarePlus className="h-4 w-4" />
+                    <span>Abrir Chat de WhatsApp</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setCompletedOrder(null);
+                      onClose();
+                    }}
+                    className="w-full py-3 px-4 text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all cursor-pointer"
+                  >
+                    ✓ Cerrar y volver a la tienda
+                  </button>
+                </div>
+              </div>
+            ) : cart.length === 0 ? (
               <div className="text-center py-12 flex flex-col items-center justify-center space-y-4">
                 <ShoppingBag className="h-12 w-12 text-slate-300" />
                 <p className="text-xs text-slate-500 max-w-[200px] leading-relaxed">Tu carrito se encuentra vacío. Seleccioná una batería certificada para ver las opciones de compra.</p>
@@ -367,7 +441,7 @@ export default function CartDrawer({
                       type="text"
                       name="address"
                       required
-                      placeholder="Ej. Av. Javier Prado Este 2400, San Borja, Lima"
+                      placeholder="Ej. Av. de la Cultura 1420, Cusco"
                       value={orderDetails.address}
                       onChange={handleInputChange}
                       className="w-full bg-white border border-slate-200 hover:border-slate-300 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 focus:outline-none text-slate-800 text-xs p-3 rounded-xl transition-all font-sans font-semibold"
@@ -452,7 +526,7 @@ export default function CartDrawer({
       </div>
 
           {/* Drawer Pricing Summary and CTA footer */}
-          {cart.length > 0 && (
+          {!completedOrder && cart.length > 0 && (
             <div className="p-6 border-t border-slate-100 bg-slate-50/80 space-y-4">
               <div className="space-y-1.5 font-mono text-xs">
                 <div className="flex justify-between text-slate-500">

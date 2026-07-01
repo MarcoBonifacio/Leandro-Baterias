@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { Activity, ShieldAlert, BadgeInfo, Play, ArrowRight, RotateCcw, AlertTriangle, Battery, BatteryCharging, CheckCircle2 } from 'lucide-react';
 import { DIAGNOSTIC_QUESTIONS } from '../data/batteryData';
+import { CarBatteryIcon } from './CarBatteryIcon';
 
 interface DiagnosticsProps {
   onScrollToCatalog: () => void;
@@ -106,7 +107,7 @@ export default function Diagnostics({ onScrollToCatalog, onScrollToFinder }: Dia
             <div className="text-center py-6 flex flex-col items-center justify-center space-y-6">
               <div className="relative">
                 <div className="h-16 w-16 bg-indigo-50 text-indigo-600 border border-indigo-100 rounded-2xl flex items-center justify-center animate-pulse">
-                  <BatteryCharging className="h-8 w-8 stroke-[1.5]" />
+                  <CarBatteryIcon className="h-8 w-8 stroke-[1.5]" />
                 </div>
               </div>
 

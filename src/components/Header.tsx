@@ -4,8 +4,9 @@
  */
 
 import React from 'react';
-import { BatteryCharging, Phone, ShoppingCart, Zap, Clock, User } from 'lucide-react';
+import { BatteryCharging, Phone, ShoppingCart, Zap, Clock, User, ClipboardList } from 'lucide-react';
 import { CartItem, UserProfile } from '../types';
+import { CarBatteryIcon } from './CarBatteryIcon';
 
 interface HeaderProps {
   cart: CartItem[];
@@ -16,6 +17,7 @@ interface HeaderProps {
   currentUser: UserProfile | null;
   onLoginClick: () => void;
   onLogout: () => void;
+  onOpenHistory: () => void;
 }
 
 export default function Header({
@@ -27,8 +29,10 @@ export default function Header({
   currentUser,
   onLoginClick,
   onLogout,
+  onOpenHistory,
 }: HeaderProps) {
   const totalItems = cart.reduce((acc, item) => acc + item.quantity, 0);
+  const isAdmin = currentUser?.role === 'admin' || currentUser?.id === 'admin-bypass-id' || currentUser?.email === 'admin@leandrobaterias.com';
 
   return (
     <header className="sticky top-0 z-40 w-full bg-white/95 backdrop-blur-md border-b border-slate-100">
@@ -49,7 +53,7 @@ export default function Header({
         {/* Brand Logo */}
         <div className="flex items-center gap-2.5 cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
           <div className="bg-indigo-600 text-white p-2.5 rounded-xl shadow-lg shadow-indigo-100">
-            <BatteryCharging className="h-5 w-5 stroke-[2.5]" />
+            <CarBatteryIcon className="h-5 w-5 stroke-[2.5]" />
           </div>
           <div>
             <h1 className="text-xl font-extrabold text-slate-900 tracking-tight leading-none">
@@ -99,21 +103,35 @@ export default function Header({
           </a>
 
           {currentUser ? (
-            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-sm max-w-[190px] sm:max-w-[240px]">
-              <div className="h-7 w-7 rounded-lg bg-indigo-100 text-indigo-700 font-extrabold text-xs flex items-center justify-center shrink-0">
-                {currentUser.name.charAt(0).toUpperCase()}
-              </div>
-              <div className="hidden sm:block text-left overflow-hidden">
-                <div className="text-[10.5px] font-black text-slate-900 leading-none truncate">{currentUser.name}</div>
-                <div className="text-[9px] font-mono text-slate-500 leading-none mt-0.5 truncate">{currentUser.email}</div>
-              </div>
-              <button 
-                onClick={onLogout}
-                className="text-[9px] font-bold text-red-600 hover:text-red-700 hover:underline cursor-pointer bg-red-50 border border-red-100 px-1.5 py-0.5 rounded-lg shrink-0"
-                title="Cerrar Sesión"
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <button
+                onClick={onOpenHistory}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer shadow-sm ${
+                  isAdmin 
+                    ? 'bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 animate-pulse' 
+                    : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200'
+                }`}
               >
-                Salir
+                <ClipboardList className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">{isAdmin ? 'Admin Ventas' : 'Mis Pedidos'}</span>
               </button>
+
+              <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-sm max-w-[170px] sm:max-w-[210px]">
+                <div className="h-7 w-7 rounded-lg bg-indigo-100 text-indigo-700 font-extrabold text-xs flex items-center justify-center shrink-0">
+                  {currentUser.name.charAt(0).toUpperCase()}
+                </div>
+                <div className="hidden md:block text-left overflow-hidden">
+                  <div className="text-[10.5px] font-black text-slate-900 leading-none truncate">{currentUser.name}</div>
+                  <div className="text-[9px] font-mono text-slate-500 leading-none mt-0.5 truncate">{currentUser.email}</div>
+                </div>
+                <button 
+                  onClick={onLogout}
+                  className="text-[9px] font-bold text-red-600 hover:text-red-700 hover:underline cursor-pointer bg-red-50 border border-red-100 px-1.5 py-0.5 rounded-lg shrink-0"
+                  title="Cerrar Sesión"
+                >
+                  Salir
+                </button>
+              </div>
             </div>
           ) : (
             <button

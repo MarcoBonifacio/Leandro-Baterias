@@ -1,20 +1,4 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
-import dotenv from 'dotenv';
-dotenv.config();
-
-import express from 'express';
-import path from 'path';
-import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
-
-const app = express();
-const PORT = 3000;
-
-app.use(express.json());
 
 // Initialize Gemini Client
 const apiKey = process.env.GEMINI_API_KEY || 'AIzaSyDzmcB-EsKC2j9wIOaaMxlZeX9s1_391wA';
@@ -28,15 +12,30 @@ const ai = new GoogleGenAI({
   }
 });
 
-// AI Assistant Help Chat endpoint
-app.post('/api/ai-helper', async (req, res) => {
+export default async function handler(req: any, res: any) {
+  // CORS Headers
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
+  );
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Solamente se admite método POST' });
+  }
+
   try {
     const { messages } = req.body;
     if (!messages || !Array.isArray(messages)) {
       return res.status(400).json({ error: 'Falta el historial de mensajes o formato inválido.' });
     }
 
-    // System instruction to guide the AI model to be a helpful battery salesperson for Leandro Baterías
     const systemPrompt = `Eres "Leandro IA", el asistente inteligente de Leandro Baterías, la tienda líder de baterías de alta gama en Cusco, Perú (CAPSA, SOLITE, VARTA, ULTRABAT, ETNA, ENERJET).
 Tus objetivos principales son:
 1. Ayudar amablemente al usuario a elegir su batería ideal basándote en la marca de su vehículo, modelo, año y uso (auto clásico, moderno, cargado de electrónica, camión, taxi, etc.).
@@ -45,17 +44,11 @@ Tus objetivos principales son:
 4. Si el cliente tiene dudas, sugiérele elegir entre las marcas líderes disponibles en nuestra tienda: VARTA (tecnología alemana de alto rendimiento, ideal para el frío), SOLITE (excelente duración para autos modernos), CAPSA (máxima confiabilidad), ULTRABAT (fuerza extrema), ETNA o ENERJET.
 Mantén tus respuestas bien formateadas, usando negritas para destacar y respondiendo en un tono amigable, directo y enfocado en solucionar el problema de batería del cliente en Cusco.`;
 
-    // Map message formats for Gemini Chats
-    // We can use the chat API by sending the conversation history
-    // Since we use the raw generateContent or chats.create, let's map messages format
-    // mapped to { role: string, parts: [{ text: string }] }
-    // Roles in gemini: "user" and "model".
     const chatHistory = messages.map((m: any) => ({
       role: m.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: m.content }]
     }));
 
-    // The last message is the prompt to send
     const lastMsg = chatHistory[chatHistory.length - 1];
     const previousHistory = chatHistory.slice(0, chatHistory.length - 1);
 
@@ -99,32 +92,9 @@ Mantén tus respuestas bien formateadas, usando negritas para destacar y respond
       throw lastError;
     }
 
-    return res.json({ result: responseText });
+    return res.status(200).json({ result: responseText });
   } catch (error: any) {
-    console.error('Error in /api/ai-helper:', error);
+    console.error('Error in Vercel API /api/ai-helper:', error);
     return res.status(500).json({ error: 'Error del asistente de inteligencia artificial.' + (error.message ? ` ${error.message}` : '') });
   }
-});
-
-// Configure Vite middleware for development or Static Asset serving for Production
-async function setupServer() {
-  if (process.env.NODE_ENV !== 'production') {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa',
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
-  }
-
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Leandro Baterías server running on port ${PORT}`);
-  });
 }
-
-setupServer();

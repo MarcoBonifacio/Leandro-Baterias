@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS public.categories (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 2. Tabla de Productos (Catálogo de Baterías Moura, Willard, Bosch, Heliar, etc.)
+-- 2. Tabla de Productos (Catálogo de Baterías VARTA, SOLITE, CAPSA, ULTRABAT, ETNA, ENERJET, etc.)
 CREATE TABLE IF NOT EXISTS public.products (
     id VARCHAR(255) PRIMARY KEY, -- Soporta tanto ID manual 'item-xxxx' como UUIDs
     category_id UUID REFERENCES public.categories(id) ON DELETE SET NULL,
@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS public.customers (
 CREATE TABLE IF NOT EXISTS public.orders (
     id VARCHAR(255) PRIMARY KEY, -- ID compuesto 'ORD-xxxxxx' generado por el frontend
     customer_id UUID REFERENCES public.customers(id) ON DELETE SET NULL,
-    user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL, -- Relacionar pedido con usuario de Supabase Auth
+    user_id VARCHAR(255), -- Relacionar pedido con usuario (UUID de Supabase o string de cuenta Admin)
     date VARCHAR(50) NOT NULL, -- Fecha formateada para rápido renderizado
     customer_name VARCHAR(255) NOT NULL,
     document_id VARCHAR(50),
@@ -68,6 +68,8 @@ CREATE TABLE IF NOT EXISTS public.orders (
     email VARCHAR(255),
     phone_number VARCHAR(50),
     shipping_address TEXT,
+    vehicle_info VARCHAR(255),
+    payment_method VARCHAR(100),
     subtotal DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
     taxes DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
     total DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
@@ -76,7 +78,11 @@ CREATE TABLE IF NOT EXISTS public.orders (
 );
 
 -- Intentar alteración de tabla por si orders ya existía antes de agregar user_id
-ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL;
+ALTER TABLE public.orders DROP CONSTRAINT IF EXISTS orders_user_id_fkey;
+ALTER TABLE public.orders ALTER COLUMN user_id TYPE VARCHAR(255);
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS user_id VARCHAR(255);
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS vehicle_info VARCHAR(255);
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS payment_method VARCHAR(100);
 
 -- 5. Tabla de Detalles de cada Orden (Items)
 CREATE TABLE IF NOT EXISTS public.order_items (
@@ -94,7 +100,7 @@ CREATE TABLE IF NOT EXISTS public.order_items (
 CREATE TABLE IF NOT EXISTS public.payments (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     order_id VARCHAR(255) REFERENCES public.orders(id) ON DELETE CASCADE NOT NULL,
-    payment_method VARCHAR(100) NOT NULL, -- Efectivo, Yape/Plin, Tarjeta, Transferencia en Lima
+    payment_method VARCHAR(100) NOT NULL, -- Efectivo, Yape/Plin, Tarjeta, Transferencia en Cusco
     transaction_reference VARCHAR(150),
     amount DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
     status VARCHAR(50) DEFAULT 'Pendiente', -- Pendiente, Aprovado, Fallido
@@ -214,7 +220,7 @@ END $$;
 -- =====================================================================
 INSERT INTO public.categories (name, description)
 VALUES 
-    ('auto', 'Baterías para autos y pequeños utilitarios (Moura, Bosch, Willard, Heliar)'),
+    ('auto', 'Baterías para autos y pequeños utilitarios (CAPSA, SOLITE, VARTA, ULTRABAT, ETNA, ENERJET)'),
     ('pesado', 'Baterías para camiones, buses, maquinaria agrícola y pesada')
 ON CONFLICT (name) DO NOTHING;
 

@@ -5,6 +5,7 @@
 
 import React from 'react';
 import { BatteryCharging, MapPin, Phone, Mail, Clock, ShieldCheck, Heart } from 'lucide-react';
+import { CarBatteryIcon } from './CarBatteryIcon';
 
 export default function Footer() {
   const currentYear = new Date().getFullYear();
@@ -19,7 +20,7 @@ export default function Footer() {
           <div className="space-y-4">
             <div className="flex items-center gap-2">
               <div className="bg-indigo-600 text-white p-1.5 rounded-lg">
-                <BatteryCharging className="h-5 w-5" />
+                <CarBatteryIcon className="h-5 w-5" />
               </div>
               <span className="text-base font-extrabold text-slate-100 tracking-tight">
                 LEANDRO <span className="text-indigo-400 font-black">BATERÍAS</span>
@@ -27,7 +28,7 @@ export default function Footer() {
             </div>
             
             <p className="text-xs text-slate-400 leading-relaxed">
-              Líder indiscutido en provisión de energía automotriz en Lima. Comprometidos con brindarte la máxima velocidad de respuesta ante fallas y un cuidado ecológico calificado.
+              Líder indiscutido en provisión de energía automotriz en Cusco. Comprometidos con brindarte la máxima velocidad de respuesta ante fallas y un cuidado ecológico calificado.
             </p>
 
             <div className="flex items-center gap-2 text-[10px] font-mono font-bold text-indigo-400">
@@ -71,7 +72,7 @@ export default function Footer() {
               </li>
               <li className="flex items-center gap-2 text-slate-400">
                 <MapPin className="h-4 w-4 text-slate-600 shrink-0" />
-                <span>Av. Javier Prado Este 2400, San Borja, Lima</span>
+                <span>Av. de la Cultura 1420, Cusco, Perú</span>
               </li>
             </ul>
           </div>
@@ -80,7 +81,7 @@ export default function Footer() {
           <div className="space-y-3">
             <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-200">Compromiso Sustentable</h4>
             <p className="text-xs text-slate-500 leading-normal">
-              Contribuimos a erradicar la contaminación por plomo y ácidos libres. Retornamos tu batería descartada al laboratorio de fundición de Moura garantizando el reciclado de todos sus materiales.
+              Contribuimos a erradicar la contaminación por plomo y ácidos libres. Retornamos tu batería descartada a plantas de fundición autorizadas en Perú garantizando el reciclado de todos sus materiales.
             </p>
             <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-mono text-[10px] rounded">
               <span>♻️ Punto Ecológico Certificado</span>
